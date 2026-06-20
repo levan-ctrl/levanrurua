@@ -796,6 +796,78 @@
     .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
     footer { flex-direction: column; gap: 8px; text-align: center; }
   }
+
+  /* ===== ANIMATION SYSTEM ===== */
+  @keyframes heroSlideUp {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes dotPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%       { transform: scale(1.8); opacity: 0.35; }
+  }
+  @keyframes gentleFloat {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-10px); }
+  }
+  @keyframes accentPulse {
+    0%, 100% { color: var(--accent); }
+    50%       { color: #ff7050; }
+  }
+
+  /* Scroll-reveal base */
+  .anim {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.65s cubic-bezier(0.16,1,0.3,1),
+                transform 0.65s cubic-bezier(0.16,1,0.3,1);
+  }
+  .anim.visible { opacity: 1; transform: translateY(0); }
+
+  /* Hero eyebrow dot pulse */
+  .hero-eyebrow::before { animation: dotPulse 2.5s ease-in-out infinite; }
+
+  /* Hero photo gentle float */
+  .hero-photo-wrap { animation: gentleFloat 5s ease-in-out infinite; }
+
+  /* Hero accent word slow pulse */
+  .hero-split h1 em { animation: accentPulse 4s ease-in-out infinite; }
+
+  /* Service card hover lift */
+  .service-card { transition: background 0.25s, transform 0.25s, box-shadow 0.25s !important; }
+  .service-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.07); }
+
+  /* Nav scroll shadow */
+  nav { transition: box-shadow 0.3s; }
+  nav.nav-scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.09); }
+
+  /* Result card accent bar slide-in from left */
+  .result-card::before {
+    transform-origin: left center;
+    transform: scaleX(0);
+    transition: transform 0.55s cubic-bezier(0.16,1,0.3,1) 0.25s;
+  }
+  .result-card.visible::before { transform: scaleX(1); }
+
+  /* Case card: reset transition to include box-shadow for hover */
+  .case-card { transition: transform 0.25s, box-shadow 0.25s; }
+
+  /* FAQ smooth accordion — overrides display:none approach */
+  .faq-a {
+    display: block !important;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    padding-bottom: 0 !important;
+    transition: max-height 0.45s cubic-bezier(0.16,1,0.3,1),
+                opacity 0.35s ease,
+                padding-bottom 0.35s ease;
+  }
+  .faq-item.open .faq-a {
+    max-height: 500px;
+    opacity: 1;
+    padding-bottom: 22px !important;
+  }
 </style>
 </head>
 <body>
@@ -1391,12 +1463,139 @@
 </div>
 
 <script>
-function toggleFaq(btn) {
-  var item = btn.parentElement;
-  var isOpen = item.classList.contains('open');
-  document.querySelectorAll('.faq-item.open').forEach(function(el){ el.classList.remove('open'); });
-  if (!isOpen) item.classList.add('open');
-}
+(function(){
+  'use strict';
+
+  // ── Hero entrance sequence ──────────────────────────────────────
+  [
+    '.hero-split .hero-eyebrow',
+    '.hero-split h1',
+    '.hero-split .hero-sub',
+    '.hero-split .hero-actions',
+    '.hero-split .hero-proof',
+    '.hero-photo-col'
+  ].forEach(function(sel, i) {
+    var el = document.querySelector(sel);
+    if (el) el.style.animation = 'heroSlideUp 0.7s cubic-bezier(0.16,1,0.3,1) ' + (i * 0.11) + 's both';
+  });
+
+  // ── Nav shadow on scroll ────────────────────────────────────────
+  var nav = document.querySelector('nav');
+  if (nav) {
+    window.addEventListener('scroll', function() {
+      nav.classList.toggle('nav-scrolled', window.scrollY > 10);
+    }, {passive: true});
+  }
+
+  // ── Scroll-reveal setup ─────────────────────────────────────────
+  var SELS = [
+    '.stats-inner .stat-item',
+    '.services-grid .service-card',
+    '.results-grid .result-card',
+    '.process-list .process-step',
+    '.video-upload-zone',
+    '.video-text-points li',
+    '.about-visual', '.about-text',
+    '.about-exp .exp-item',
+    '.testimonials-grid .tcard',
+    '.cases-grid .case-card',
+    '.cases-grid .case-placeholder',
+    '.faq-list .faq-item'
+  ];
+
+  var animEls = [];
+  var seen = new WeakSet();
+  SELS.forEach(function(sel) {
+    document.querySelectorAll(sel).forEach(function(el) {
+      if (!seen.has(el)) { seen.add(el); animEls.push(el); }
+    });
+  });
+
+  // Stagger delay within grid/list parents
+  [
+    '.stats-inner', '.services-grid', '.results-grid', '.process-list',
+    '.testimonials-grid', '.cases-grid', '.about-exp', '.video-text-points', '.faq-list'
+  ].forEach(function(gSel) {
+    var g = document.querySelector(gSel);
+    if (!g) return;
+    var kids = g.querySelectorAll(
+      '.stat-item,.service-card,.result-card,.process-step,.tcard,.case-card,.case-placeholder,.exp-item,li,.faq-item'
+    );
+    kids.forEach(function(el, i) { el.dataset.delay = (i * 0.09).toFixed(2); });
+  });
+
+  // Apply .anim and immediately reveal if already in viewport
+  animEls.forEach(function(el) {
+    el.classList.add('anim');
+    var delay = parseFloat(el.dataset.delay || 0);
+    el.style.transitionDelay = delay + 's';
+    var r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight * 0.95 && r.bottom > 0) {
+      el.classList.add('visible');
+      el.style.transitionDelay = '0s';
+    }
+  });
+
+  // IntersectionObserver for below-fold elements
+  var ro = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); ro.unobserve(e.target); }
+    });
+  }, {threshold: 0.08, rootMargin: '0px 0px -30px 0px'});
+
+  animEls.forEach(function(el) {
+    if (!el.classList.contains('visible')) ro.observe(el);
+  });
+
+  // Animate section headers (skip hero)
+  document.querySelectorAll('.section-eyebrow, .section-title, .section-sub').forEach(function(el) {
+    if (el.closest('.hero-split')) return;
+    el.classList.add('anim');
+    var r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight * 0.95 && r.bottom > 0) {
+      el.classList.add('visible');
+    } else {
+      ro.observe(el);
+    }
+  });
+
+  // ── Number counter for hero proof stats ─────────────────────────
+  function countUp(el, pre, target, suf, dur) {
+    var t0 = performance.now();
+    (function tick(now) {
+      var p = Math.min((now - t0) / dur, 1);
+      var v = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      el.textContent = pre + Math.round(target * v) + suf;
+      if (p < 1) requestAnimationFrame(tick);
+    })(t0);
+  }
+  function parseNumText(txt) {
+    var m = txt.match(/^([^0-9]*)([0-9]+(?:\.[0-9]+)?)(.*)$/);
+    return m ? {pre: m[1], n: parseFloat(m[2]), suf: m[3]} : null;
+  }
+  var co = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (!e.isIntersecting) return;
+      var el = e.target;
+      if (el.children.length) { co.unobserve(el); return; }
+      var p = parseNumText(el.textContent.trim());
+      if (p && p.n > 0) countUp(el, p.pre, p.n, p.suf, 1200);
+      co.unobserve(el);
+    });
+  }, {threshold: 0.6});
+  document.querySelectorAll('.hero-proof-num').forEach(function(el) {
+    if (!el.children.length) co.observe(el);
+  });
+
+  // ── FAQ smooth accordion ────────────────────────────────────────
+  window.toggleFaq = function(btn) {
+    var item = btn.parentElement;
+    var isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(function(el) { el.classList.remove('open'); });
+    if (!isOpen) item.classList.add('open');
+  };
+
+})();
 </script>
 
 <!-- CTA -->
